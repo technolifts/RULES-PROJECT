@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.api import auth, documents
+from app.api import auth, documents, shares
 from app.database import Base, engine
 from app.config import settings
 import os
@@ -23,6 +23,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router)
 app.include_router(documents.router)
+app.include_router(shares.router)
 
 # Create uploads directory if it doesn't exist
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)

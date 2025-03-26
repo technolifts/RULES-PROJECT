@@ -2,6 +2,7 @@ import os
 import uuid
 import shutil
 from fastapi import UploadFile, HTTPException
+from fastapi.responses import FileResponse
 from app.config import settings
 
 ALLOWED_CONTENT_TYPES = [
@@ -76,3 +77,14 @@ def delete_file(file_path: str):
     """Delete file from disk"""
     if os.path.exists(file_path):
         os.remove(file_path)
+
+def get_file_content(file_path: str, filename: str, content_type: str):
+    """Get file content for download"""
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type=content_type
+    )

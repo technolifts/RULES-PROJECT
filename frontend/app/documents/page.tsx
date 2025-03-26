@@ -5,6 +5,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
 import DocumentUpload from '@/components/DocumentUpload';
 import DocumentList from '@/components/DocumentList';
+import SharesList from '@/components/SharesList';
 import axios from 'axios';
 
 export default function Documents() {
@@ -13,6 +14,7 @@ export default function Documents() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showSharesModal, setShowSharesModal] = useState(false);
 
   const fetchDocuments = async () => {
     try {
@@ -89,12 +91,20 @@ export default function Documents() {
           <header>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
               <h1 className="text-3xl font-bold leading-tight text-gray-900">Documents</h1>
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Upload Document
-              </button>
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => setShowSharesModal(true)}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Manage Shares
+                </button>
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Upload Document
+                </button>
+              </div>
             </div>
           </header>
           <main>
@@ -111,7 +121,11 @@ export default function Documents() {
                     <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
                   </div>
                 ) : documents.length > 0 ? (
-                  <DocumentList documents={documents} onDelete={handleDeleteDocument} />
+                  <DocumentList 
+                    documents={documents} 
+                    onDelete={handleDeleteDocument} 
+                    onShare={fetchDocuments}
+                  />
                 ) : (
                   <div className="border-4 border-dashed border-gray-200 rounded-lg h-64 flex items-center justify-center">
                     <p className="text-gray-500">No documents yet. Upload your first document.</p>
@@ -126,6 +140,13 @@ export default function Documents() {
           <DocumentUpload 
             onClose={() => setShowUploadModal(false)} 
             onUploadSuccess={handleDocumentUpload}
+          />
+        )}
+        
+        {showSharesModal && (
+          <SharesList 
+            onClose={() => setShowSharesModal(false)}
+            onRefreshShares={() => {}}
           />
         )}
       </div>

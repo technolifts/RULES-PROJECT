@@ -17,8 +17,9 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Relationship to documents
+    # Relationships
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
+    share_links = relationship("ShareLink", back_populates="user")
 
     @staticmethod
     def verify_password(plain_password, hashed_password):

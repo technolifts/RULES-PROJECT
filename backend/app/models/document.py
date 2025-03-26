@@ -17,5 +17,6 @@ class Document(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationship to user
+    # Relationships
     user = relationship("User", back_populates="documents")
+    share_links = relationship("ShareLink", back_populates="document", cascade="all, delete-orphan")

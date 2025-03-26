@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.database import Base
 from passlib.context import CryptContext
 
@@ -15,6 +16,9 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationship to documents
+    documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
 
     @staticmethod
     def verify_password(plain_password, hashed_password):

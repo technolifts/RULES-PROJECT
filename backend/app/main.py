@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import auth
+from fastapi.staticfiles import StaticFiles
+from app.api import auth, documents
 from app.database import Base, engine
+from app.config import settings
+import os
 
 app = FastAPI(title="DocSecure API")
 
@@ -19,6 +22,10 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth.router)
+app.include_router(documents.router)
+
+# Create uploads directory if it doesn't exist
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
 @app.get("/")
 async def root():

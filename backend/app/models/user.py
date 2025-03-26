@@ -20,6 +20,7 @@ class User(Base):
     # Relationships
     documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
     share_links = relationship("ShareLink", back_populates="user")
+    audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
 
     @staticmethod
     def verify_password(plain_password, hashed_password):

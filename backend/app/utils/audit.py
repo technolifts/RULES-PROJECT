@@ -2,7 +2,7 @@ from fastapi import Request, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.audit import AuditLog
-from typing import Optional
+from typing import Optional, Dict, Any, Union
 import json
 
 
@@ -20,11 +20,15 @@ def create_audit_log(
     action: str,
     resource_type: str,
     resource_id: Optional[str] = None,
-    details: Optional[str] = None,
+    details: Optional[Union[str, Dict[str, Any]]] = None,
     user_id: Optional[int] = None,
     ip_address: Optional[str] = None,
 ):
     """Create an audit log entry in the database"""
+    # Convert dict details to JSON string
+    if isinstance(details, dict):
+        details = json.dumps(details)
+        
     audit_log = AuditLog(
         action=action,
         resource_type=resource_type,
@@ -37,6 +41,31 @@ def create_audit_log(
     db.commit()
     db.refresh(audit_log)
     return audit_log
+
+
+async def log_activity(
+    db: Session,
+    action: str,
+    resource_type: str,
+    user_id: Optional[int] = None,
+    resource_id: Optional[str] = None,
+    details: Optional[Union[str, Dict[str, Any]]] = None,
+    request: Optional[Request] = None,
+):
+    """Helper function to log user activity with request info"""
+    ip_address = None
+    if request:
+        ip_address = await get_client_ip(request)
+    
+    return create_audit_log(
+        db=db,
+        action=action,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        details=details,
+        user_id=user_id,
+        ip_address=ip_address
+    )
 
 
 class AuditMiddleware:

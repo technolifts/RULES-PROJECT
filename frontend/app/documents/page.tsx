@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import DocumentUpload from '@/components/DocumentUpload';
 import DocumentList from '@/components/DocumentList';
 import SharesList from '@/components/SharesList';
+import AuditLogsList from '@/components/AuditLogsList';
 import axios from 'axios';
 
 export default function Documents() {
@@ -15,6 +16,7 @@ export default function Documents() {
   const [error, setError] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showSharesModal, setShowSharesModal] = useState(false);
+  const [showAuditLogsModal, setShowAuditLogsModal] = useState(false);
 
   const fetchDocuments = async () => {
     try {
@@ -93,6 +95,12 @@ export default function Documents() {
               <h1 className="text-3xl font-bold leading-tight text-gray-900">Documents</h1>
               <div className="flex space-x-4">
                 <button
+                  onClick={() => setShowAuditLogsModal(true)}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Activity Logs
+                </button>
+                <button
                   onClick={() => setShowSharesModal(true)}
                   className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
@@ -147,6 +155,12 @@ export default function Documents() {
           <SharesList 
             onClose={() => setShowSharesModal(false)}
             onRefreshShares={() => {}}
+          />
+        )}
+        
+        {showAuditLogsModal && (
+          <AuditLogsList 
+            onClose={() => setShowAuditLogsModal(false)}
           />
         )}
       </div>

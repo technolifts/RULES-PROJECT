@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
@@ -9,12 +9,14 @@ from app.schemas.share import ShareLink as ShareLinkSchema, ShareLinkCreate, Sha
 from app.utils.auth import get_current_active_user
 from app.utils.share import generate_share_token, get_default_expiry
 from app.utils.file import get_file_content
+from app.utils.audit import log_activity
 
 router = APIRouter(tags=["shares"])
 
 @router.post("/shares/", response_model=ShareLinkSchema)
-def create_share_link(
+async def create_share_link(
     share: ShareLinkCreate,
+    request: Request = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -25,6 +27,17 @@ def create_share_link(
         raise HTTPException(status_code=404, detail="Document not found")
     
     if document.user_id != current_user.id:
+        # Log unauthorized share attempt
+        await log_activity(
+            db=db,
+            action="unauthorized_share",
+            resource_type="document",
+            user_id=current_user.id,
+            resource_id=str(share.document_id),
+            details={"document_owner": document.user_id if document else None},
+            request=request
+        )
+        
         raise HTTPException(status_code=403, detail="Not authorized to share this document")
     
     # Generate a unique token
@@ -45,10 +58,26 @@ def create_share_link(
     db.commit()
     db.refresh(db_share)
     
+    # Log share creation
+    await log_activity(
+        db=db,
+        action="create",
+        resource_type="share",
+        user_id=current_user.id,
+        resource_id=str(db_share.id),
+        details={
+            "document_id": share.document_id,
+            "expires_at": expires_at.isoformat() if expires_at else None,
+            "token": token[:8] + "..." # Only log part of the token for security
+        },
+        request=request
+    )
+    
     return db_share
 
 @router.get("/shares/", response_model=List[ShareLinkSchema])
-def get_user_share_links(
+async def get_user_share_links(
+    request: Request = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -58,11 +87,22 @@ def get_user_share_links(
         ShareLink.is_active == True
     ).all()
     
+    # Log share list access
+    await log_activity(
+        db=db,
+        action="list",
+        resource_type="share",
+        user_id=current_user.id,
+        details={"count": len(shares)},
+        request=request
+    )
+    
     return shares
 
 @router.delete("/shares/{share_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_share_link(
+async def delete_share_link(
     share_id: int,
+    request: Request = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -73,16 +113,44 @@ def delete_share_link(
         raise HTTPException(status_code=404, detail="Share link not found")
     
     if share.created_by != current_user.id:
+        # Log unauthorized delete attempt
+        await log_activity(
+            db=db,
+            action="unauthorized_delete",
+            resource_type="share",
+            user_id=current_user.id,
+            resource_id=str(share_id),
+            details={"share_owner": share.created_by},
+            request=request
+        )
+        
         raise HTTPException(status_code=403, detail="Not authorized to delete this share link")
+    
+    # Store share info for logging
+    share_info = {
+        "document_id": share.document_id,
+        "token": share.token[:8] + "..." # Only log part of the token for security
+    }
     
     # Deactivate the share link instead of deleting it
     share.is_active = False
     db.commit()
     
+    # Log share deletion
+    await log_activity(
+        db=db,
+        action="delete",
+        resource_type="share",
+        user_id=current_user.id,
+        resource_id=str(share_id),
+        details=share_info,
+        request=request
+    )
+    
     return None
 
 @router.get("/public/documents/{token}", response_model=SharedDocumentInfo)
-def get_shared_document_info(token: str, db: Session = Depends(get_db)):
+async def get_shared_document_info(token: str, request: Request = None, db: Session = Depends(get_db)):
     """Get information about a shared document without authentication"""
     share = db.query(ShareLink).filter(
         ShareLink.token == token,
@@ -90,10 +158,34 @@ def get_shared_document_info(token: str, db: Session = Depends(get_db)):
     ).first()
     
     if not share or share.is_expired:
+        # Log invalid or expired share access attempt
+        await log_activity(
+            db=db,
+            action="invalid_share_access",
+            resource_type="share",
+            resource_id=token[:8] + "...",
+            details={"reason": "not found or expired"},
+            request=request
+        )
+        
         raise HTTPException(status_code=404, detail="Share link not found or expired")
     
     document = share.document
     shared_by = db.query(User).filter(User.id == share.created_by).first()
+    
+    # Log successful share access
+    await log_activity(
+        db=db,
+        action="access",
+        resource_type="share",
+        user_id=share.created_by,
+        resource_id=str(share.id),
+        details={
+            "document_id": document.id,
+            "document_name": document.original_filename
+        },
+        request=request
+    )
     
     return {
         "id": document.id,
@@ -105,7 +197,7 @@ def get_shared_document_info(token: str, db: Session = Depends(get_db)):
     }
 
 @router.get("/public/documents/{token}/download")
-def download_shared_document(token: str, db: Session = Depends(get_db)):
+async def download_shared_document(token: str, request: Request = None, db: Session = Depends(get_db)):
     """Download a shared document without authentication"""
     share = db.query(ShareLink).filter(
         ShareLink.token == token,
@@ -113,9 +205,33 @@ def download_shared_document(token: str, db: Session = Depends(get_db)):
     ).first()
     
     if not share or share.is_expired:
+        # Log invalid or expired share download attempt
+        await log_activity(
+            db=db,
+            action="invalid_share_download",
+            resource_type="share",
+            resource_id=token[:8] + "...",
+            details={"reason": "not found or expired"},
+            request=request
+        )
+        
         raise HTTPException(status_code=404, detail="Share link not found or expired")
     
     document = share.document
+    
+    # Log successful share download
+    await log_activity(
+        db=db,
+        action="download",
+        resource_type="share",
+        user_id=share.created_by,
+        resource_id=str(share.id),
+        details={
+            "document_id": document.id,
+            "document_name": document.original_filename
+        },
+        request=request
+    )
     
     # Get file content and return as a response
     return get_file_content(document.file_path, document.original_filename, document.content_type)
